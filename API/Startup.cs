@@ -12,6 +12,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Persistence;
+using MediatR;
+using Application.Activities;
 
 namespace API
 {
@@ -27,17 +29,20 @@ namespace API
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddDbContext<DataContext>(options=>
+            services.AddDbContext<DataContext>(options =>
             {
                 options.UseSqlite(Configuration.GetConnectionString("DefaultConnection"));
             });
-            services.AddCors(opt => { 
-                opt.AddPolicy("CorsPolicy", policy => {
-                    policy.AllowAnyHeader().AllowAnyMethod().WithOrigins("http://localhost:3000");	
+            services.AddCors(opt =>
+            {
+                opt.AddPolicy("CorsPolicy", policy =>
+                {
+                    policy.AllowAnyHeader().AllowAnyMethod().WithOrigins("http://localhost:3000");
                 });
             });
             //services.AddControllers();
-             services.AddMvc(opt=>opt.EnableEndpointRouting = false);
+            services.AddMediatR(typeof(List.Handler).Assembly);
+            services.AddMvc(opt => opt.EnableEndpointRouting = false);
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -52,7 +57,7 @@ namespace API
 
             app.UseCors("CorsPolicy");
             app.UseMvc();
-            
+
         }
     }
 }
