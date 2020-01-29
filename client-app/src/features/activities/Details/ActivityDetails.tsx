@@ -8,21 +8,24 @@ import ActivityDetailedHeader from "./ActivityDetailedHeader";
 import ActivityDetailedInfo from "./ActivityDetailedInfo";
 import ActivityDetailedChat from "./ActivityDetailedChat";
 import ActivityDetailedSideBar from "./ActivityDetailedSideBar";
+import { act } from "react-dom/test-utils";
 interface DetailParams {
   id: string;
 }
 
 const ActivityDetails: React.FC<RouteComponentProps<DetailParams>> = ({
-  match
+  match,
+  history
 }) => {
   const activityStore = useContext(ActivityStore);
   const { activity, loadActivity, loadingInitial } = activityStore;
   useEffect(() => {
     loadActivity(match.params.id);
-  }, [loadActivity, match.params.id]);
-  //return <h1>ActivityDetails</h1>;
-  if (loadingInitial || !activity)
-    return <LoadingComponent content="Loading Activity" />;
+  }, [loadActivity, match.params.id, history]);
+
+  if (loadingInitial) return <LoadingComponent content="Loading Activity" />;
+
+  if (!activity) return <h2>Activity not found..</h2>;
   return (
     <Grid>
       <Grid.Column width={10}>
