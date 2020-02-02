@@ -6,34 +6,26 @@ using Domain;
 using MediatR;
 using Application.Activities;
 using System.Threading;
+using Microsoft.AspNetCore.Authorization;
 
 namespace API.Controllers
 {
-    [Route("api/[controller]")]
-    [ApiController]
-    public class ActivitiesController : ControllerBase
+    public class ActivitiesController : BaseController
     {
-
-        private readonly IMediator _mediator;
-
-        public ActivitiesController(IMediator mediator)
-        {
-            this._mediator = mediator;
-
-        }
 
         // GET: api/Activities
         [HttpGet]
         public async Task<ActionResult<List<Activity>>> List(CancellationToken ct)
         {
-            return await _mediator.Send(new List.Query(), ct);
+            return await Mediator.Send(new List.Query(), ct);
         }
 
         // GET: api/Activities/5
         [HttpGet("{id}")]
+        [Authorize]
         public async Task<ActionResult<Activity>> Details(Guid id, CancellationToken ct)
         {
-            var activity = await _mediator.Send(new Details.Query { Id = id });
+            var activity = await Mediator.Send(new Details.Query { Id = id });
 
             if (activity == null)
             {
@@ -51,7 +43,7 @@ namespace API.Controllers
             // //when used DataAnotations 
             // if (!ModelState.IsValid)
             //     return BadRequest(ModelState);
-            return await _mediator.Send(command);
+            return await Mediator.Send(command);
         }
 
         // PUT: api/Activities/5
@@ -61,7 +53,7 @@ namespace API.Controllers
         public async Task<ActionResult<Unit>> Edit(Guid id, Edit.Command command)
         {
             command.Id = id;
-            return await _mediator.Send(command);
+            return await Mediator.Send(command);
         }
 
 
@@ -70,7 +62,7 @@ namespace API.Controllers
         [HttpDelete("{id}")]
         public async Task<ActionResult<Unit>> DeleteActivity(Guid id)
         {
-            return await _mediator.Send(new Delete.Command() { Id = id });
+            return await Mediator.Send(new Delete.Command() { Id = id });
         }
 
         // private bool ActivityExists(Guid id)
