@@ -78,6 +78,22 @@ export default class ProfileStore {
     }
   };
 
+  @action editProfile = async (profile: Partial<IProfile>) => {
+    try {
+      await agent.Profiles.edit(profile);
+      runInAction(() => {
+        if (
+          profile.displayName !== this.rootStore.userStore.user!.displayName
+        ) {
+          this.rootStore.userStore.user!.displayName = profile.displayName!;
+        }
+        this.profile = { ...this.profile!, ...profile };
+      });
+    } catch (error) {
+      toast.error("Problem editing profile");
+    }
+  };
+
   @action deletePhoto = async (photo: IPhoto) => {
     this.loading = true;
     try {
