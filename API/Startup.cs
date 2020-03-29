@@ -1,27 +1,27 @@
-
+using System.Text;
+using System.Threading.Tasks;
+using API.Middleware;
+using API.SignalR;
+using Application.Activities;
+using Application.Interfaces;
+using AutoMapper;
+using Domain;
+using FluentValidation.AspNetCore;
+using Infrastructure.Photos;
+using Infrastructure.Security;
+using MediatR;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Persistence;
-using MediatR;
-using Application.Activities;
-using FluentValidation.AspNetCore;
-using API.Middleware;
-using Domain;
-using Microsoft.AspNetCore.Identity;
-using Application.Interfaces;
-using Infrastructure.Security;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using System.Text;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc.Authorization;
-using AutoMapper;
-using Infrastructure.Photos;
-using Application.Photos;
+using Persistence;
 
 namespace API
 {
@@ -37,32 +37,30 @@ namespace API
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddDbContext<DataContext>(options =>
+            services.AddDbContext<DataContext>(opt =>
             {
-                options.UseLazyLoadingProxies();
-                options.UseSqlite(Configuration.GetConnectionString("DefaultConnection"));
+                opt.UseLazyLoadingProxies();
+                opt.UseSqlite(Configuration.GetConnectionString("DefaultConnection"));
             });
             services.AddCors(opt =>
             {
                 opt.AddPolicy("CorsPolicy", policy =>
                 {
-                    policy.AllowAnyHeader().AllowAnyMethod().WithOrigins("http://localhost:3000");
+                    policy.WithOrigins("http://localhost:3000").AllowAnyHeader().AllowAnyMethod().AllowCredentials();
                 });
             });
-
             services.AddMediatR(typeof(List.Handler).Assembly);
             services.AddAutoMapper(typeof(List.Handler));
+            services.AddSignalR();
             services.AddMvc(opt =>
             {
                 var policy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
                 opt.EnableEndpointRouting = false;
                 opt.Filters.Add(new AuthorizeFilter(policy));
-            }).AddFluentValidation(
-                cfg =>
-                {
-                    cfg.RegisterValidatorsFromAssemblyContaining<Create>();
-                }
-            );
+            })
+                .AddFluentValidation(cfg => cfg.RegisterValidatorsFromAssemblyContaining<Create>());
+            //.SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
+
             var builder = services.AddIdentityCore<AppUser>();
             var identityBuilder = new IdentityBuilder(builder.UserType, builder.Services);
             identityBuilder.AddEntityFrameworkStores<DataContext>();
@@ -70,7 +68,6 @@ namespace API
 
             services.AddAuthorization(opt =>
             {
-
                 opt.AddPolicy("IsActivityHost", policy =>
                 {
                     policy.Requirements.Add(new IsHostRequirement());
@@ -78,20 +75,32 @@ namespace API
             });
             services.AddTransient<IAuthorizationHandler, IsHostRequirementHandler>();
 
-
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Configuration["TokenKey"]));
             services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddJwtBearer(OptionsBuilderConfigurationExtensions =>
-            {
-                OptionsBuilderConfigurationExtensions.TokenValidationParameters = new TokenValidationParameters
+                .AddJwtBearer(opt =>
                 {
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = key,
-                    ValidateAudience = false,
-                    ValidateIssuer = false
-                };
-            });
+                    opt.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuerSigningKey = true,
+                        IssuerSigningKey = key,
+                        ValidateAudience = false,
+                        ValidateIssuer = false
+                    };
+                    opt.Events = new JwtBearerEvents
+                    {
+                        OnMessageReceived = context =>
+                        {
+                            var accessToken = context.Request.Query["access_token"];
+                            var path = context.HttpContext.Request.Path;
+                            if (!string.IsNullOrEmpty(accessToken) && (path.StartsWithSegments("/chat")))
+                            {
+                                context.Token = accessToken;
+                            }
 
+                            return Task.CompletedTask;
+                        }
+                    };
+                });
 
             services.AddScoped<IJwtGenerator, JwtGenerator>();
             services.AddScoped<IUserAccessor, UserAccessor>();
@@ -102,9 +111,11 @@ namespace API
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
+            app.UseRouting();
+            // app.UseEndpoints((routes => { routes.MapHub<ChatHub>("/chat"); }));
             app.UseMiddleware<ErrorHandlingMiddleware>();
 
-            if (env.IsDevelopment())
+            if (env.EnvironmentName == "Development")
             {
                 // app.UseDeveloperExceptionPage();
             }
@@ -116,9 +127,15 @@ namespace API
 
             // app.UseHttpsRedirection();
             app.UseAuthentication();
+            app.UseAuthorization();
             app.UseCors("CorsPolicy");
+            app.UseEndpoints(endpoints =>
+                      {
+                          endpoints.MapControllers();
+                          endpoints.MapHub<ChatHub>("/chat");
+                      });
+            //app.UseSignalR(routes => { routes.MapHub<ChatHub>("/chat"); });
             app.UseMvc();
-
         }
     }
 }
